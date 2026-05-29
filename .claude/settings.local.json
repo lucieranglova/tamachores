@@ -29,7 +29,13 @@
       "Bash(python3 -c \"import sys,json; print\\(f'{len\\(json.load\\(sys.stdin\\)\\)} úkolů načteno'\\)\")",
       "Bash(launchctl unload *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Fix page layout: height 100% → flex 1 for correct tab bar positioning *)"
+      "Bash(git commit -m 'Fix page layout: height 100% → flex 1 for correct tab bar positioning *)",
+      "Bash(python3 -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(python3 -c \"from PIL import Image; print\\('Pillow nainstalováno'\\)\")",
+      "Bash(python3 *)",
+      "Bash(git commit -m 'Arcade-style app icon: pixel egg device on dark background *)",
+      "Bash(git commit -m 'Add display name: custom name shown in UI, login unchanged *)"
     ]
   }
 }

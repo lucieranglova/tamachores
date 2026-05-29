@@ -7,9 +7,11 @@ const SECTION_LABELS = { daily: 'Denní', weekly: 'Týdenní', monthly: 'Měsí�
 const RESET_TYPES = ['daily', 'weekly', 'monthly']
 
 export default function Settings() {
-  const { auth, logout } = useAuth()
+  const { auth, logout, setDisplayName } = useAuth()
   const { refresh } = useGame()
   const [allChores, setAllChores] = useState([])
+  const [displayNameInput, setDisplayNameInput] = useState(auth?.displayName || '')
+  const [nameMsg, setNameMsg] = useState('')
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [pwMsg, setPwMsg] = useState('')
@@ -63,6 +65,19 @@ export default function Settings() {
     } catch (err) {
       setChoreMsg(err.message)
     }
+  }
+
+  async function changeDisplayName(e) {
+    e.preventDefault()
+    setNameMsg('')
+    try {
+      await api.changeDisplayName(displayNameInput.trim())
+      setDisplayName(displayNameInput.trim())
+      setNameMsg('Jméno změněno!')
+    } catch (err) {
+      setNameMsg(err.message)
+    }
+    setTimeout(() => setNameMsg(''), 3000)
   }
 
   async function changePassword(e) {
@@ -167,6 +182,17 @@ export default function Settings() {
               </div>
             </div>
           ))}
+
+          {/* Change display name */}
+          <div className="settings-section">
+            <div className="settings-section-title">ZOBRAZOVANÉ JMÉNO</div>
+            <form style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }} onSubmit={changeDisplayName}>
+              <input className="input" placeholder="Tvoje jméno" value={displayNameInput}
+                onChange={e => setDisplayNameInput(e.target.value)} required maxLength={20} />
+              <button className="btn btn-primary btn-sm" type="submit">ULOŽIT</button>
+              {nameMsg && <div style={{ fontSize: 6, color: nameMsg.includes('změněno') ? 'green' : 'red' }}>{nameMsg}</div>}
+            </form>
+          </div>
 
           {/* Change password */}
           <div className="settings-section">

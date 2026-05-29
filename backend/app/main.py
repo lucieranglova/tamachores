@@ -18,11 +18,15 @@ from .push import send_push_notification, VAPID_PUBLIC_KEY
 
 models.Base.metadata.create_all(bind=engine)
 
-# Migrate: add max_per_period column if missing
+# Migrations
 with engine.connect() as _conn:
-    _cols = [c["name"] for c in sa_inspect(engine).get_columns("chores")]
-    if "max_per_period" not in _cols:
+    _chore_cols = [c["name"] for c in sa_inspect(engine).get_columns("chores")]
+    if "max_per_period" not in _chore_cols:
         _conn.execute(text("ALTER TABLE chores ADD COLUMN max_per_period INTEGER DEFAULT 1 NOT NULL"))
+        _conn.commit()
+    _user_cols = [c["name"] for c in sa_inspect(engine).get_columns("users")]
+    if "display_name" not in _user_cols:
+        _conn.execute(text("ALTER TABLE users ADD COLUMN display_name TEXT"))
         _conn.commit()
 
 app = FastAPI(title="TamaChores API", version="1.0.0")
@@ -88,6 +92,9 @@ def get_period_start(reset_type: str) -> datetime:
     else:
         return datetime(now.year, now.month, 1)
 
+
+def display(user: models.User) -> str:
+    return user.display_name or user.username
 
 def get_claims_in_period(chore: models.Chore, db: Session) -> list:
     period_start = get_period_start(chore.reset_type)
@@ -175,7 +182,7 @@ def login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_access_token(user.username)
-    return {"access_token": token, "token_type": "bearer", "username": user.username, "player_id": user.id}
+    return {"access_token": token, "token_type": "bearer", "username": user.username, "display_name": display(user), "player_id": user.id}
 
 
 @router.post("/auth/change-password")
@@ -204,7 +211,7 @@ def list_chores(current_user=Depends(get_current_user), db: Session = Depends(ge
         claim_id = None
         if last_claim:
             u = db.query(models.User).filter(models.User.id == last_claim.player_id).first()
-            claimer_name = u.username if u else None
+            claimer_name = display(u) if u else None
             claimer_id = last_claim.player_id
             claim_id = last_claim.id
         result.append(
@@ -438,7 +445,7 @@ def get_stats(current_user=Depends(get_current_user), db: Session = Depends(get_
             daily_pts.append(sum(c.points_earned for c in all_claims if ds <= c.claimed_at < de))
         streak = db.query(models.Streak).filter(models.Streak.player_id == user.id).first()
         return schemas.PlayerStats(
-            username=user.username,
+            username=display(user),
             player_id=user.id,
             total_points=total_pts,
             spendable_points=spendable,
@@ -502,12 +509,26 @@ def get_me(current_user=Depends(get_current_user), db: Session = Depends(get_db)
     return {
         "id": current_user.id,
         "username": current_user.username,
+        "display_name": display(current_user),
         "total_points": total_pts,
         "spendable_points": spendable,
         "current_streak": streak.current_streak if streak else 0,
         "streak_bonus_active": streak.streak_bonus_active if streak else False,
     }
 
+
+@router.put("/users/display-name")
+def change_display_name(
+    req: schemas.ChangeDisplayNameRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    name = req.display_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Jméno nesmí být prázdné")
+    current_user.display_name = name
+    db.commit()
+    return {"ok": True, "display_name": name}
 
 @router.put("/users/push-subscription")
 def update_push_sub(

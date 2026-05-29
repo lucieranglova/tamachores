@@ -10,11 +10,15 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
+    display_name: Optional[str] = None
     player_id: int
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+
+class ChangeDisplayNameRequest(BaseModel):
+    display_name: str
 
 class ChoreResponse(BaseModel):
     id: int

@@ -58,7 +58,7 @@ export default function Home() {
       {/* Egg devices */}
       <div className="devices-row">
         <TamaDevice
-          player={{ username: auth?.username }}
+          player={{ username: auth?.displayName || auth?.username }}
           color={auth?.username === 'player1' ? 'pink' : 'blue'}
           todayPoints={myDailyPts}
           dailyTotal={dailyTotal}

@@ -26,6 +26,8 @@ export const api = {
   login: (username, password) => req('POST', '/auth/login', { username, password }),
   changePassword: (current_password, new_password) =>
     req('POST', '/auth/change-password', { current_password, new_password }),
+  changeDisplayName: (display_name) =>
+    req('PUT', '/users/display-name', { display_name }),
 
   getChores: () => req('GET', '/chores'),
   getAllChores: () => req('GET', '/chores/all'),
