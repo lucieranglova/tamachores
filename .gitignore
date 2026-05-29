@@ -9,6 +9,9 @@ build/
 
 # Database
 backend/data/
+
+# Combined build output (Railway builds this in Docker)
+backend/static/
 *.db
 *.sqlite3
 

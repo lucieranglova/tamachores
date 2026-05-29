@@ -4,7 +4,8 @@
       "Bash(npm run *)",
       "Read(//private/tmp/pw-runner/**)",
       "Bash(npx playwright *)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(docker build *)"
     ]
   }
 }

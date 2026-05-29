@@ -4,9 +4,10 @@ import random
 from datetime import datetime, date, timedelta
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .database import get_db, engine
@@ -25,6 +26,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+router = APIRouter()
 
 
 # ── WebSocket manager ────────────────────────────────────────────────────────
@@ -52,7 +55,7 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -74,7 +77,7 @@ def get_period_start(reset_type: str) -> datetime:
     elif reset_type == "weekly":
         monday = now.date() - timedelta(days=now.weekday())
         return datetime(monday.year, monday.month, monday.day)
-    else:  # monthly
+    else:
         return datetime(now.year, now.month, 1)
 
 
@@ -151,8 +154,14 @@ async def startup():
     db.commit()
 
 
+# ── Health ────────────────────────────────────────────────────────────────────
+@router.get("/health")
+def health():
+    return {"ok": True}
+
+
 # ── Auth routes ───────────────────────────────────────────────────────────────
-@app.post("/auth/login", response_model=schemas.TokenResponse)
+@router.post("/auth/login", response_model=schemas.TokenResponse)
 def login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user or not verify_password(req.password, user.password_hash):
@@ -161,7 +170,7 @@ def login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer", "username": user.username, "player_id": user.id}
 
 
-@app.post("/auth/change-password")
+@router.post("/auth/change-password")
 def change_password(
     req: schemas.ChangePasswordRequest,
     current_user=Depends(get_current_user),
@@ -175,7 +184,7 @@ def change_password(
 
 
 # ── Chore routes ──────────────────────────────────────────────────────────────
-@app.get("/chores", response_model=List[schemas.ChoreResponse])
+@router.get("/chores", response_model=List[schemas.ChoreResponse])
 def list_chores(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     chores = db.query(models.Chore).filter(models.Chore.is_active == True).all()
     result = []
@@ -206,7 +215,7 @@ def list_chores(current_user=Depends(get_current_user), db: Session = Depends(ge
     return result
 
 
-@app.post("/chores", response_model=schemas.ChoreResponse)
+@router.post("/chores", response_model=schemas.ChoreResponse)
 def create_chore(
     req: schemas.CustomChoreRequest,
     current_user=Depends(get_current_user),
@@ -235,7 +244,7 @@ def create_chore(
     )
 
 
-@app.get("/chores/all")
+@router.get("/chores/all")
 def list_all_chores(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     chores = db.query(models.Chore).all()
     return [
@@ -252,12 +261,8 @@ def list_all_chores(current_user=Depends(get_current_user), db: Session = Depend
     ]
 
 
-@app.put("/chores/{chore_id}/toggle")
-def toggle_chore(
-    chore_id: int,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.put("/chores/{chore_id}/toggle")
+def toggle_chore(chore_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     chore = db.query(models.Chore).filter(models.Chore.id == chore_id).first()
     if not chore:
         raise HTTPException(status_code=404, detail="Chore not found")
@@ -266,12 +271,8 @@ def toggle_chore(
     return {"id": chore_id, "is_active": chore.is_active}
 
 
-@app.delete("/chores/{chore_id}")
-def delete_chore(
-    chore_id: int,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.delete("/chores/{chore_id}")
+def delete_chore(chore_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     chore = db.query(models.Chore).filter(
         models.Chore.id == chore_id, models.Chore.is_default == False
     ).first()
@@ -283,7 +284,7 @@ def delete_chore(
 
 
 # ── Claim routes ──────────────────────────────────────────────────────────────
-@app.post("/claims", response_model=schemas.ClaimResponse)
+@router.post("/claims", response_model=schemas.ClaimResponse)
 async def claim_chore(
     req: schemas.ClaimRequest,
     current_user=Depends(get_current_user),
@@ -299,7 +300,6 @@ async def claim_chore(
     if existing:
         raise HTTPException(status_code=409, detail="Already claimed this period")
 
-    # Combo multiplier: count player's claims in last 5 min
     five_min_ago = datetime.utcnow() - timedelta(minutes=5)
     recent = (
         db.query(models.Claim)
@@ -307,15 +307,10 @@ async def claim_chore(
         .count()
     )
     combo_mult = 3.0 if recent >= 5 else (2.0 if recent >= 3 else 1.0)
-
-    # Crit chance 8%
     is_crit = random.random() < 0.08
     crit_mult = 2.0 if is_crit else 1.0
-
-    # Streak bonus
     streak = db.query(models.Streak).filter(models.Streak.player_id == current_user.id).first()
     streak_mult = 1.2 if (streak and streak.streak_bonus_active) else 1.0
-
     points_earned = int(chore.points * combo_mult * crit_mult * streak_mult)
 
     claim = models.Claim(
@@ -330,10 +325,8 @@ async def claim_chore(
     db.refresh(claim)
 
     await _check_and_update_streak(current_user.id, db)
-
     total_points = calc_spendable(current_user.id, db)
 
-    # Notify partner
     partner = db.query(models.User).filter(models.User.id != current_user.id).first()
     if partner and partner.push_subscription:
         send_push_notification(
@@ -368,7 +361,6 @@ async def claim_chore(
 async def _check_and_update_streak(player_id: int, db: Session):
     today = date.today()
     period_start = datetime(today.year, today.month, today.day)
-
     active_daily_ids = [
         c.id
         for c in db.query(models.Chore).filter(
@@ -377,7 +369,6 @@ async def _check_and_update_streak(player_id: int, db: Session):
     ]
     if not active_daily_ids:
         return
-
     done_count = (
         db.query(models.Claim)
         .filter(
@@ -387,11 +378,9 @@ async def _check_and_update_streak(player_id: int, db: Session):
         )
         .count()
     )
-
     streak = db.query(models.Streak).filter(models.Streak.player_id == player_id).first()
     if not streak:
         return
-
     if done_count >= len(active_daily_ids):
         yesterday = today - timedelta(days=1)
         if streak.last_completed_date == yesterday:
@@ -401,15 +390,13 @@ async def _check_and_update_streak(player_id: int, db: Session):
         streak.last_completed_date = today
         streak.streak_bonus_active = True
     else:
-        # Only reset bonus if last_completed_date is stale
         if streak.last_completed_date and streak.last_completed_date < today:
             streak.streak_bonus_active = False
-
     db.commit()
 
 
 # ── Stats routes ──────────────────────────────────────────────────────────────
-@app.get("/stats", response_model=schemas.StatsResponse)
+@router.get("/stats", response_model=schemas.StatsResponse)
 def get_stats(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     users = db.query(models.User).order_by(models.User.id).all()
     today = date.today()
@@ -418,19 +405,16 @@ def get_stats(current_user=Depends(get_current_user), db: Session = Depends(get_
         all_claims = db.query(models.Claim).filter(models.Claim.player_id == user.id).all()
         today_start = datetime(today.year, today.month, today.day)
         week_start = today_start - timedelta(days=today.weekday())
-
         today_pts = sum(c.points_earned for c in all_claims if c.claimed_at >= today_start)
         week_pts = sum(c.points_earned for c in all_claims if c.claimed_at >= week_start)
         total_pts = sum(c.points_earned for c in all_claims)
         spendable = calc_spendable(user.id, db)
-
         daily_pts = []
         for i in range(6, -1, -1):
             d = today - timedelta(days=i)
             ds = datetime(d.year, d.month, d.day)
             de = ds + timedelta(days=1)
             daily_pts.append(sum(c.points_earned for c in all_claims if ds <= c.claimed_at < de))
-
         streak = db.query(models.Streak).filter(models.Streak.player_id == user.id).first()
         return schemas.PlayerStats(
             username=user.username,
@@ -447,22 +431,17 @@ def get_stats(current_user=Depends(get_current_user), db: Session = Depends(get_
     p1 = next((u for u in users if u.username == "player1"), users[0])
     p2 = next((u for u in users if u.username == "player2"), users[1] if len(users) > 1 else users[0])
     days_labels = [(today - timedelta(days=i)).strftime("%a") for i in range(6, -1, -1)]
-
     return schemas.StatsResponse(player1=make_stats(p1), player2=make_stats(p2), days_labels=days_labels)
 
 
 # ── Reward routes ─────────────────────────────────────────────────────────────
-@app.get("/rewards", response_model=List[schemas.RewardResponse])
+@router.get("/rewards", response_model=List[schemas.RewardResponse])
 def list_rewards(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(models.Reward).all()
 
 
-@app.post("/rewards", response_model=schemas.RewardResponse)
-def create_reward(
-    req: schemas.RewardRequest,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.post("/rewards", response_model=schemas.RewardResponse)
+def create_reward(req: schemas.RewardRequest, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     reward = models.Reward(name=req.name, point_cost=req.point_cost, created_by=current_user.id)
     db.add(reward)
     db.commit()
@@ -470,12 +449,8 @@ def create_reward(
     return reward
 
 
-@app.delete("/rewards/{reward_id}")
-def delete_reward(
-    reward_id: int,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.delete("/rewards/{reward_id}")
+def delete_reward(reward_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     reward = db.query(models.Reward).filter(models.Reward.id == reward_id).first()
     if not reward:
         raise HTTPException(status_code=404, detail="Reward not found")
@@ -484,26 +459,20 @@ def delete_reward(
     return {"ok": True}
 
 
-@app.post("/rewards/{reward_id}/redeem")
-def redeem_reward(
-    reward_id: int,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.post("/rewards/{reward_id}/redeem")
+def redeem_reward(reward_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     reward = db.query(models.Reward).filter(models.Reward.id == reward_id).first()
     if not reward:
         raise HTTPException(status_code=404, detail="Reward not found")
-
     if calc_spendable(current_user.id, db) < reward.point_cost:
         raise HTTPException(status_code=400, detail="Insufficient points")
-
     db.add(models.Redemption(reward_id=reward_id, redeemed_by=current_user.id))
     db.commit()
     return {"ok": True, "points_spent": reward.point_cost}
 
 
 # ── User routes ───────────────────────────────────────────────────────────────
-@app.get("/users/me")
+@router.get("/users/me")
 def get_me(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     all_claims = db.query(models.Claim).filter(models.Claim.player_id == current_user.id).all()
     total_pts = sum(c.points_earned for c in all_claims)
@@ -519,7 +488,7 @@ def get_me(current_user=Depends(get_current_user), db: Session = Depends(get_db)
     }
 
 
-@app.put("/users/push-subscription")
+@router.put("/users/push-subscription")
 def update_push_sub(
     req: schemas.PushSubscriptionRequest,
     current_user=Depends(get_current_user),
@@ -530,12 +499,15 @@ def update_push_sub(
     return {"ok": True}
 
 
-@app.get("/vapid-public-key")
+@router.get("/vapid-public-key")
 def get_vapid_key():
     return {"public_key": VAPID_PUBLIC_KEY}
 
 
-# ── WebSocket ─────────────────────────────────────────────────────────────────
+# ── Mount router + WebSocket + static ────────────────────────────────────────
+app.include_router(router, prefix="/api")
+
+
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -544,3 +516,9 @@ async def ws_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# Serve built frontend (production only — not present in dev)
+_static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+if os.path.isdir(_static_dir):
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
