@@ -85,7 +85,7 @@ export default function Settings() {
   }, {})
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div className="header">
         <span style={{ fontSize: 10 }}>⚙️ NASTAVENÍ</span>
         <span style={{ fontSize: 7, color: 'var(--text-muted)' }}>{auth?.username}</span>

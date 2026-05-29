@@ -45,7 +45,7 @@ export default function Home() {
   const partnerDailyPts = partnerStats?.today_points ?? 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <CritFlash show={showCrit} onDone={() => setShowCrit(false)} points={lastClaim?.points_earned} />
 
       <div className="header">

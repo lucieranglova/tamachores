@@ -61,7 +61,7 @@ export default function Shop() {
   const spendable = me?.spendable_points ?? 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div className="header">
         <span style={{ fontSize: 10 }}>🎁 ODMĚNY</span>
       </div>
