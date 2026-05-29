@@ -39,7 +39,7 @@ export default function ChoreCard({ chore, onClaim, currentUserId }) {
       aria-disabled={isFull}
       style={{ opacity: busy ? 0.6 : undefined, position: 'relative' }}
     >
-      <div className="chore-icon">{ICONS[chore.icon_key] || ICONS.default}</div>
+      <div className="chore-icon">{ICONS[chore.icon_key] ?? chore.icon_key ?? ICONS.default}</div>
       <div className="chore-name">{chore.name}</div>
       <div className="chore-pts">{chore.points}pts</div>
       <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>

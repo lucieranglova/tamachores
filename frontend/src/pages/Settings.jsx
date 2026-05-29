@@ -6,6 +6,13 @@ import { useGame } from '../contexts/GameContext.jsx'
 const SECTION_LABELS = { daily: 'Denní', weekly: 'Týdenní', monthly: 'Měsíční' }
 const RESET_TYPES = ['daily', 'weekly', 'monthly']
 
+const EMOJI_OPTIONS = [
+  '🧹','🍽️','🍴','🗑️','🍲','☕','🌿','✨','👕','🧺',
+  '👔','🚽','🛁','🫧','🛒','♻️','🪟','🧊','📦','🔥',
+  '🧽','🪣','🧴','🐕','🐈','🛏️','🪴','💊','📚','🎮',
+  '🎵','🚗','🏃','🧘','🥗','🍕','🧁','🎂','🌸','⚡',
+]
+
 export default function Settings() {
   const { auth, logout, setDisplayName } = useAuth()
   const { refresh } = useGame()
@@ -21,6 +28,7 @@ export default function Settings() {
   const [newName, setNewName] = useState('')
   const [newPts, setNewPts] = useState('')
   const [newType, setNewType] = useState('daily')
+  const [newEmoji, setNewEmoji] = useState('⭐')
 
   const loadAll = useCallback(async () => {
     try {
@@ -55,7 +63,7 @@ export default function Settings() {
     e.preventDefault()
     if (!newName.trim() || !newPts) return
     try {
-      await api.createChore({ name: newName.trim(), points: Number(newPts), reset_type: newType })
+      await api.createChore({ name: newName.trim(), points: Number(newPts), reset_type: newType, icon_key: newEmoji })
       setNewName('')
       setNewPts('')
       setChoreMsg('Úkol přidán!')
@@ -124,6 +132,30 @@ export default function Settings() {
                   <option value="monthly">Měsíční</option>
                 </select>
               </div>
+
+              {/* Emoji picker */}
+              <div style={{ fontFamily: 'var(--font)', fontSize: 6, marginBottom: 2 }}>
+                IKONKA: <span style={{ fontSize: 16 }}>{newEmoji}</span>
+              </div>
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)',
+                gap: 3, border: '1px solid var(--border)', padding: 4, background: 'var(--cream)',
+              }}>
+                {EMOJI_OPTIONS.map(e => (
+                  <button
+                    key={e} type="button"
+                    onClick={() => setNewEmoji(e)}
+                    style={{
+                      fontSize: 16, background: newEmoji === e ? 'var(--pink)' : 'transparent',
+                      border: newEmoji === e ? '2px solid var(--border)' : '2px solid transparent',
+                      cursor: 'pointer', padding: 2, lineHeight: 1,
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+
               <button className="btn btn-primary btn-sm" type="submit">+ PŘIDAT</button>
               {choreMsg && <div style={{ fontSize: 6, color: 'green' }}>{choreMsg}</div>}
             </form>

@@ -35,8 +35,8 @@ export default function Home() {
   // Player stats from stats response
   const p1Stats = stats?.player1
   const p2Stats = stats?.player2
-  const myStats = p1Stats?.username === auth?.username ? p1Stats : p2Stats
-  const partnerStats = p1Stats?.username === auth?.username ? p2Stats : p1Stats
+  const myStats = p1Stats?.player_id === auth?.playerId ? p1Stats : p2Stats
+  const partnerStats = p1Stats?.player_id === auth?.playerId ? p2Stats : p1Stats
 
   // Daily chores total for mood
   const dailyChores = byType.daily
