@@ -5,7 +5,31 @@
       "Read(//private/tmp/pw-runner/**)",
       "Bash(npx playwright *)",
       "Bash(gh auth *)",
-      "Bash(docker build *)"
+      "Bash(docker build *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm install *)",
+      "Bash(railway --version)",
+      "Bash(railway whoami *)",
+      "Bash(railway init *)",
+      "Bash(brew list *)",
+      "Bash(brew install *)",
+      "Bash(pkill -f \"uvicorn\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -f \"ngrok\")",
+      "Bash(ngrok http *)",
+      "Bash(curl -s http://localhost:4040/api/tunnels)",
+      "Bash(python3 -c ' *)",
+      "Bash(pkill -f ngrok)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Login přes ngrok OK, player_id:', d['player_id']\\)\")",
+      "Bash(pkill -f uvicorn)",
+      "Bash(launchctl load *)",
+      "Bash(launchctl list *)",
+      "Bash(python3 -c \"import sys,json; print\\(f'{len\\(json.load\\(sys.stdin\\)\\)} úkolů načteno'\\)\")",
+      "Bash(launchctl unload *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Fix page layout: height 100% → flex 1 for correct tab bar positioning *)"
     ]
   }
 }

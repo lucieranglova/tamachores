@@ -24,6 +24,8 @@ class ChoreResponse(BaseModel):
     is_default: bool
     is_active: bool
     icon_key: str
+    max_per_period: int = 1
+    claims_in_period: int = 0
     claimed_by: Optional[str] = None
     claimed_by_id: Optional[int] = None
     claim_id: Optional[int] = None
@@ -47,6 +49,10 @@ class CustomChoreRequest(BaseModel):
     points: int
     reset_type: str
     icon_key: str = "custom"
+    max_per_period: int = 1
+
+class UpdateChoreRequest(BaseModel):
+    max_per_period: int
 
 class RewardResponse(BaseModel):
     id: int

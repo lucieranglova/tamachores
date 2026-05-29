@@ -10,12 +10,20 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from sqlalchemy import text, inspect as sa_inspect
 from .database import get_db, engine
 from . import models, schemas
 from .auth import verify_password, get_password_hash, create_access_token, decode_token
 from .push import send_push_notification, VAPID_PUBLIC_KEY
 
 models.Base.metadata.create_all(bind=engine)
+
+# Migrate: add max_per_period column if missing
+with engine.connect() as _conn:
+    _cols = [c["name"] for c in sa_inspect(engine).get_columns("chores")]
+    if "max_per_period" not in _cols:
+        _conn.execute(text("ALTER TABLE chores ADD COLUMN max_per_period INTEGER DEFAULT 1 NOT NULL"))
+        _conn.commit()
 
 app = FastAPI(title="TamaChores API", version="1.0.0")
 
@@ -81,16 +89,16 @@ def get_period_start(reset_type: str) -> datetime:
         return datetime(now.year, now.month, 1)
 
 
-def get_chore_claim_in_period(chore_id: int, db: Session) -> Optional[models.Claim]:
-    chore = db.query(models.Chore).filter(models.Chore.id == chore_id).first()
-    if not chore:
-        return None
+def get_claims_in_period(chore: models.Chore, db: Session) -> list:
     period_start = get_period_start(chore.reset_type)
     return (
         db.query(models.Claim)
-        .filter(models.Claim.chore_id == chore_id, models.Claim.claimed_at >= period_start)
-        .first()
+        .filter(models.Claim.chore_id == chore.id, models.Claim.claimed_at >= period_start)
+        .all()
     )
+
+def is_chore_full(chore: models.Chore, db: Session) -> bool:
+    return len(get_claims_in_period(chore, db)) >= chore.max_per_period
 
 
 def calc_spendable(user_id: int, db: Session) -> int:
@@ -189,15 +197,16 @@ def list_chores(current_user=Depends(get_current_user), db: Session = Depends(ge
     chores = db.query(models.Chore).filter(models.Chore.is_active == True).all()
     result = []
     for chore in chores:
-        claim = get_chore_claim_in_period(chore.id, db)
+        period_claims = get_claims_in_period(chore, db)
+        last_claim = period_claims[-1] if period_claims else None
         claimer_name = None
         claimer_id = None
         claim_id = None
-        if claim:
-            u = db.query(models.User).filter(models.User.id == claim.player_id).first()
+        if last_claim:
+            u = db.query(models.User).filter(models.User.id == last_claim.player_id).first()
             claimer_name = u.username if u else None
-            claimer_id = claim.player_id
-            claim_id = claim.id
+            claimer_id = last_claim.player_id
+            claim_id = last_claim.id
         result.append(
             schemas.ChoreResponse(
                 id=chore.id,
@@ -207,6 +216,8 @@ def list_chores(current_user=Depends(get_current_user), db: Session = Depends(ge
                 is_default=chore.is_default,
                 is_active=chore.is_active,
                 icon_key=chore.icon_key,
+                max_per_period=chore.max_per_period,
+                claims_in_period=len(period_claims),
                 claimed_by=claimer_name,
                 claimed_by_id=claimer_id,
                 claim_id=claim_id,
@@ -228,6 +239,7 @@ def create_chore(
         is_default=False,
         is_active=True,
         icon_key=req.icon_key,
+        max_per_period=max(1, req.max_per_period),
         created_by=current_user.id,
     )
     db.add(chore)
@@ -256,10 +268,20 @@ def list_all_chores(current_user=Depends(get_current_user), db: Session = Depend
             "is_default": c.is_default,
             "is_active": c.is_active,
             "icon_key": c.icon_key,
+            "max_per_period": c.max_per_period,
         }
         for c in chores
     ]
 
+
+@router.patch("/chores/{chore_id}")
+def update_chore(chore_id: int, req: schemas.UpdateChoreRequest, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    chore = db.query(models.Chore).filter(models.Chore.id == chore_id).first()
+    if not chore:
+        raise HTTPException(status_code=404, detail="Chore not found")
+    chore.max_per_period = max(1, req.max_per_period)
+    db.commit()
+    return {"id": chore_id, "max_per_period": chore.max_per_period}
 
 @router.put("/chores/{chore_id}/toggle")
 def toggle_chore(chore_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -296,8 +318,7 @@ async def claim_chore(
     if not chore:
         raise HTTPException(status_code=404, detail="Chore not found")
 
-    existing = get_chore_claim_in_period(chore.id, db)
-    if existing:
+    if is_chore_full(chore, db):
         raise HTTPException(status_code=409, detail="Already claimed this period")
 
     five_min_ago = datetime.utcnow() - timedelta(minutes=5)

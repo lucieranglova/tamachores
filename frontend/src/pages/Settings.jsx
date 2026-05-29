@@ -130,7 +130,29 @@ export default function Settings() {
                     >
                       {chore.name}
                     </span>
-                    <span style={{ fontSize: 6, color: 'var(--text-muted)', marginRight: 4 }}>{chore.points}p</span>
+                    <span style={{ fontSize: 6, color: 'var(--text-muted)' }}>{chore.points}p</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 5, color: 'var(--text-muted)' }}>×</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        defaultValue={chore.max_per_period ?? 1}
+                        style={{
+                          width: 28, fontFamily: 'var(--font)', fontSize: 6,
+                          border: '1px solid var(--border)', textAlign: 'center',
+                          padding: '1px 2px', background: 'white',
+                        }}
+                        onChange={async (e) => {
+                          const val = parseInt(e.target.value)
+                          if (val >= 1 && val <= 10) {
+                            try { await api.updateChore(chore.id, { max_per_period: val }) }
+                            catch {}
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: 5, color: 'var(--text-muted)' }}>/{type === 'daily' ? 'den' : type === 'weekly' ? 'týd' : 'měs'}</span>
+                    </div>
                     <button
                       className={`btn btn-sm ${chore.is_active ? '' : 'btn-primary'}`}
                       onClick={() => toggleChore(chore.id)}

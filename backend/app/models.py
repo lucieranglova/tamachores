@@ -18,6 +18,7 @@ class Chore(Base):
     is_default = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
     icon_key = Column(String, default="default")
+    max_per_period = Column(Integer, default=1)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
 class Claim(Base):

@@ -31,6 +31,7 @@ export const api = {
   getAllChores: () => req('GET', '/chores/all'),
   createChore: (data) => req('POST', '/chores', data),
   toggleChore: (id) => req('PUT', `/chores/${id}/toggle`),
+  updateChore: (id, data) => req('PATCH', `/chores/${id}`, data),
   deleteChore: (id) => req('DELETE', `/chores/${id}`),
 
   claimChore: (chore_id) => req('POST', '/claims', { chore_id }),
